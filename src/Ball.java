@@ -1,97 +1,51 @@
-package pongGame;
-
-import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Rectangle;
-import java.util.Random;
 
+import javax.swing.JOptionPane;
 
-public class Ball implements Runnable {
+public class Ball {
+    private static final int WIDTH = 30, HEIGHT = 30;
+    private Pong game;
+    private int x, y, xa = 2, ya = 2;
 
-	//global variables
-	int x, y, xDirection, yDirection;
-	
-	
-	int p1score, p2score;
-	
-	Paddle p1 = new Paddle(10, 25, 1);
-	Paddle p2 = new Paddle(485, 25, 2);
-	
-	Rectangle ball;
+    public Ball(Pong game) {
+        this.game = game;
+        x = game.getWidth() / 2;
+        y = game.getHeight() / 2;
+    }
 
-	
-	public Ball(int x, int y){
-		p1score = p2score = 0;
-		this.x = x;
-		this.y = y;
-		
-		//Set ball moving randomly
-		Random r = new Random();
-		int rXDir = r.nextInt(1);
-		if (rXDir == 0)
-			rXDir--;
-		setXDirection(rXDir);
-		
-		int rYDir = r.nextInt(1);
-		if (rYDir == 0)
-			rYDir--;
-		setYDirection(rYDir);
-		
-		//create "ball"
-		ball = new Rectangle(this.x, this.y, 15, 15);
-	}
-	
-	public void setXDirection(int xDir){
-		xDirection = xDir;
-	}
-	public void setYDirection(int yDir){
-		yDirection = yDir;
-	}
-	
-	public void draw(Graphics g) {
-		g.setColor(Color.WHITE);
-		g.fillRect(ball.x, ball.y, ball.width, ball.height);
-	}
-	
-	public void collision(){
-        if(ball.intersects(p1.paddle))
-            setXDirection(+1);
-        if(ball.intersects(p2.paddle))
-            setXDirection(-1);
-	}	
-	public void move() {
-		collision();
-		ball.x += xDirection;
-		ball.y += yDirection;
-		//bounce the ball when it hits the edge of the screen
-		if (ball.x <= 0) {
-			setXDirection(+1);
-			p2score++;
-			
-	}
-		if (ball.x >= 485) {
-			setXDirection(-1);
-			p1score++;
-		}
-		
-		if (ball.y <= 15) {
-			setYDirection(+1);
-		}
-		
-		if (ball.y >= 385) {
-			setYDirection(-1);
-		}
-	}
-	
-	@Override
-	public void run() {
-		try {
-			while(true) {
-				move();
-				Thread.sleep(8);
-			}
-		}catch(Exception e) { System.err.println(e.getMessage()); }
+    public void update() {
+        x += xa;
+        y += ya;
+        if (x < 0) {
+            game.getPanel().increaseScore(1);
+            x = game.getWidth() / 2;
+            xa = -xa;
+        }
+        else if (x > game.getWidth() - WIDTH - 7) {
+            game.getPanel().increaseScore(2);
+            x = game.getWidth() / 2;
+            xa = -xa;
+        }
+        else if (y < 0 || y > game.getHeight() - HEIGHT - 29)
+            ya = -ya;
+        if (game.getPanel().getScore(1) == 10)
+            JOptionPane.showMessageDialog(null, "Player 1 wins", "Pong", JOptionPane.PLAIN_MESSAGE);
+        else if (game.getPanel().getScore(2) == 10)
+            JOptionPane.showMessageDialog(null, "Player 2 wins", "Pong", JOptionPane.PLAIN_MESSAGE);
+        checkCollision();
+    }
 
-	}
+    public void checkCollision() {
+        if (game.getPanel().getPlayer(1).getBounds().intersects(getBounds()) || game.getPanel().getPlayer(2).getBounds().intersects(getBounds()))
+            xa = -xa;
+    }
 
+    public Rectangle getBounds() {
+        return new Rectangle(x, y, WIDTH, HEIGHT);
+    }
+
+    public void paint(Graphics g) {
+        g.fillRect(x, y, WIDTH, HEIGHT);
+    }
 }
