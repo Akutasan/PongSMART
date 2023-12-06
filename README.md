@@ -1,6 +1,6 @@
 # PongSMART
-S = Semi
-M = Machine
-A = Artificial
-R = Recursive
+S = Semi\
+M = Machine\
+A = Artificial\
+R = Recursive\
 T = Training

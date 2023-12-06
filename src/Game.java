@@ -4,6 +4,7 @@ import java.awt.geom.Ellipse2D;
 import java.awt.geom.Rectangle2D;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.concurrent.ThreadLocalRandom;
 
 import javax.swing.*;
 
@@ -125,7 +126,56 @@ public class Game extends JPanel implements KeyListener, ActionListener {
             topPadX -= (topPadX > 0) ? SPEED : 0;
         }
 
+        getBestAction();
+
         repaint();
+    }
+
+    /**
+     * TODO: Implement Q-Learning algorithm
+     */
+
+    // TODO: Initalize Q-Table: (3x12) Double Array
+
+    // TODO: Define Epsilon-greedy policy
+
+    // Do EXPLORATION with chance (Epsilon) and EXPLOITATION with chance of (1-Epsilon)
+    public double epsilon_greedy_policy(double[][] Qtable, double state, double epsilon){
+
+        // Create random number between 0 and 1
+        double rand = ThreadLocalRandom.current().nextDouble(0, 1);
+        double action;
+
+        if (rand > epsilon){
+            // action is set to max of QTable
+
+            //action = Qtable[State][]
+        } else {
+            // action is set to random action?!?
+            //action = somn like a sample
+        }
+
+        return action;
+    }
+
+    // TODO: Define Greedy-Policy
+
+    // TODO: Define Hyperparameters
+
+    // TODO: Model Training
+
+    // TODO: OTHER STEPS THAT MIRO HAD NO BRAIN POWER TO WRITE DOWN ANYMORE
+
+    public void getBestAction(){
+        //Bellman's equation
+        //Q(s,a) = Q(s,a) + α * (r + γ * max(Q(s',a')) - Q(s,a))
+        //
+        //The equation breaks down as follows:
+        //
+        //Q(s, a) represents the expected reward for taking action a in state s.
+        //The actual reward received for that action is referenced by r while s' refers to the next state.
+        //The learning rate is α and γ is the discount factor.
+        //The highest expected reward for all possible actions a' in state s' is represented by max(Q(s', a')).
     }
 
     @Override
