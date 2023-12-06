@@ -23,12 +23,20 @@ public class Racket {
     }
 
     public void pressed(int keyCode) {
-        if (keyCode == up) ya = -1;
-        else if (keyCode == down) ya = 1;
+        if (keyCode == up) ya = -5;
+        else if (keyCode == down) ya = 5;
     }
 
     public void released(int keyCode) {
         if (keyCode == up || keyCode == down) ya = 0;
+    }
+
+    public int getX() {
+        return x;
+    }
+
+    public int getY() {
+        return y;
     }
 
     public Rectangle getBounds() {

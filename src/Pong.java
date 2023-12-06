@@ -1,10 +1,9 @@
-import java.awt.Color;
-
-import javax.swing.JFrame;
+import javax.swing.*;
+import java.awt.*;
 
 public class Pong extends JFrame {
-    private final static int WIDTH = 700, HEIGHT = 450;
-    private PongPanel panel;
+    public final static int WIDTH = 700, HEIGHT = 450;
+    private final PongPanel panel;
 
     public Pong() {
         setSize(WIDTH, HEIGHT);
@@ -19,9 +18,5 @@ public class Pong extends JFrame {
 
     public PongPanel getPanel() {
         return panel;
-    }
-
-    public static void main(String[] args) {
-        new Pong();
     }
 }

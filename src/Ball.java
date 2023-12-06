@@ -5,7 +5,7 @@ import javax.swing.JOptionPane;
 
 public class Ball {
     private static final int WIDTH = 30, HEIGHT = 30;
-    private Pong game;
+    private final Pong game;
     private int x, y, xa = 2, ya = 2;
 
     public Ball(Pong game) {
@@ -43,6 +43,14 @@ public class Ball {
 
     public Rectangle getBounds() {
         return new Rectangle(x, y, WIDTH, HEIGHT);
+    }
+
+    public int getX() {
+        return x;
+    }
+
+    public int getY() {
+        return y;
     }
 
     public void paint(Graphics g) {

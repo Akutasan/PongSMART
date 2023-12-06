@@ -9,9 +9,10 @@ import javax.swing.JPanel;
 import javax.swing.Timer;
 
 public class PongPanel extends JPanel implements ActionListener, KeyListener {
-    private Pong game;
-    private Ball ball;
-    private Racket player1, player2;
+    private final Pong game;
+    private final Ball ball;
+    private final Racket player1;
+    private final Racket player2;
     private int score1, score2;
 
     public PongPanel(Pong game) {
@@ -24,6 +25,10 @@ public class PongPanel extends JPanel implements ActionListener, KeyListener {
         timer.start();
         addKeyListener(this);
         setFocusable(true);
+    }
+
+    public Ball getBall() {
+        return ball;
     }
 
     public Racket getPlayer(int playerNo) {
@@ -69,7 +74,6 @@ public class PongPanel extends JPanel implements ActionListener, KeyListener {
     }
 
     public void keyTyped(KeyEvent e) {
-        ;
     }
 
     @Override
