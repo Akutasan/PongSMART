@@ -99,7 +99,6 @@ public class Game extends JPanel implements KeyListener, ActionListener {
         if (ballY <= padH + inset && velY < 0)
             if (ballX + ballSize >= topPadX && ballX <= topPadX + padW)
                 velY = -velY;
-                // TODO: Set reward
 
         // update ball position
         ballX += velX;
