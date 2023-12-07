@@ -1,4 +1,5 @@
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -7,35 +8,35 @@ import java.awt.event.KeyListener;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Rectangle2D;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.concurrent.ThreadLocalRandom;
 
-
 public class Game extends JPanel implements KeyListener, ActionListener {
-
-    // TODO: AI modifies HashMap ("LEFT" / "RIGHT") in order to control Paddle
+    // AI modifies HashMap ("LEFT" / "RIGHT") in order to control Paddle
     static HashSet<String> keys = new HashSet<>();
     // 0 = Nothing, -1 = Penalty, 1 = Reward
-
-    //TODO: AHHHHJHHHHH!HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH!H!HHHHHHHHHHHHHHHHGHGHGHHGHHGHGHGHGHGGGGGHGHHHHHHHHHHHH
-    HashMap<Integer, double[]> pastStates= new HashMap<>();
-    int stateCount = 0;
-
     static int result;
     static boolean done = false;
-    private final HashMap<Double, String> listOfOptions = new HashMap<>();
+    public final int padW = 40;
+    public final double ballSize = 20;
     private final int padH = 10;
-    private final int padW = 40;
     private final int inset = 10;
-    private final double ballSize = 20;
-    int n_training_episodes = 10000;
+    // ==================== MODIFY THESE VALUES FOR OPTIMAL RESULTS ====================
     double learning_rate = 0.7;
     double gamma = 0.95;
     double max_epsilon = 1.0;
     double min_epsilon = 0.05;
     double decay_rate = 0.0005;
+
+    // ==================== MODIFY THESE VALUES FOR OPTIMAL RESULTS ====================
+
+    int gameSpeed = 1;
+    int n_training_episodes = 10000;
     double epsilon = 0;
+    double[][] qTable;
+    JFrame qTableFrame = new JFrame("Q-Table");
+    DefaultTableModel qTableModel = new DefaultTableModel();
+    JTable qTableDisplay = new JTable(qTableModel);
     private int height, width;
     private boolean first;
     private int bottomPadX, topPadX;
@@ -47,36 +48,41 @@ public class Game extends JPanel implements KeyListener, ActionListener {
     // score
     private int scoreTop, scoreBottom;
 
-    {
-        listOfOptions.put(0.0, "LEFT");
-        listOfOptions.put(1.0, "RIGHT");
-        listOfOptions.put(2.0, "");
-    }
-
     public Game() {
         addKeyListener(this);
         setFocusable(true);
         setFocusTraversalKeysEnabled(false);
         first = true;
-        Timer t = new Timer(5, this);
+        int delay = 5 / gameSpeed;
+
+        Timer t = new Timer(delay, this);
         t.setInitialDelay(100);
         t.start();
+
+        // Add a cool motherfucking slider sheesh (it gets jankier the higher we go so I cap at 20 hehe)
+        JSlider speedSlider = new JSlider(JSlider.HORIZONTAL, 1, 20, gameSpeed);
+        speedSlider.addChangeListener(e -> {
+            JSlider source = (JSlider) e.getSource();
+            if (!source.getValueIsAdjusting()) {
+                // Update the game speed when the slider value changes
+                gameSpeed = source.getValue();
+            }
+        });
+        this.add(speedSlider);
+
+        // Q-Table Frame to better watch
+        qTableFrame.setSize(400, 400);
+        qTableFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        qTableFrame.add(new JScrollPane(qTableDisplay));
+        qTableFrame.setVisible(true);
     }
 
-    // get and return gameState
-    double[] gameState = new double[2];
-    public double[] getGameState(){
-        gameState[0] = ballX;
-        gameState[1] = ballY;
-        gameState[2] = bottomPadX;
-
-        return gameState;
-    }
-
+    // ============================== UTIL FUNCTIONS ==============================
     public static double findMaxInColumns(double[][] arr, int cols) {
         double max = 0;
-        for (double i = 0; i < cols; i++) {
-            if (arr[(int) i][cols] > max) max = arr[(int) i][cols];
+        int index = Math.abs(cols) % arr.length;
+        for (double i = 0; i < arr[index].length; i++) {
+            if (arr[index][(int) i] > max) max = arr[index][(int) i];
         }
         return max;
     }
@@ -102,14 +108,47 @@ public class Game extends JPanel implements KeyListener, ActionListener {
         return Arrays.stream(array).average().orElse(Double.NaN);
     }
 
-    public static double findMaxInTable(double[][] arr) {
-        double max = 0;
-        for (double[] doubles : arr) {
-            for (double aDouble : doubles) {
-                if (aDouble > max) max = aDouble;
+    // Ignore this, nerdy stuff
+    public void updateQTableDisplay() {
+        SwingUtilities.invokeLater(() -> {
+            Object[][] qTableObjects = new Object[qTable.length][qTable[0].length];
+            for (int i = 0; i < qTable.length; i++) {
+                for (int j = 0; j < qTable[0].length; j++) {
+                    qTableObjects[i][j] = qTable[i][j];
+                }
             }
+            qTableModel.setDataVector(qTableObjects, new String[qTable[0].length]);
+        });
+    }
+
+    public void debugger(String msg) {
+        System.out.println(msg);
+    }
+
+    // Method to add left or right to the list of keys and remove it when the key is released
+    public void keyModifier(int action) {
+        switch (action) {
+            case 0 -> keys.add("LEFT");
+            case 1 -> keys.add("RIGHT");
         }
-        return max;
+        // wait for 100ms
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        switch (action) {
+            case 0 -> keys.remove("LEFT");
+            case 1 -> keys.remove("RIGHT");
+        }
+    }
+
+    // ============================== UTIL FUNCTIONS ==============================
+
+    // get and return gameState
+    public GameState getGameState() {
+        return new GameState(ballX, ballY, bottomPadX);
     }
 
     @Override
@@ -143,15 +182,14 @@ public class Game extends JPanel implements KeyListener, ActionListener {
         // scores
         String scoreB = "Bottom: " + scoreBottom;
         String scoreT = "Top: " + scoreTop;
+        String gameSpeedText = "GS: " + gameSpeed;
+        g2d.drawString(gameSpeedText, width / 2 - 20, 40);
         g2d.drawString(scoreB, 10, height / 2);
         g2d.drawString(scoreT, width - 50, height / 2);
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        result = 0;
-        done = false;
-
         // side walls (left / right): change direction on collision
         if (ballX < 0 || ballX > width - ballSize) {
             velX = -velX;
@@ -161,6 +199,8 @@ public class Game extends JPanel implements KeyListener, ActionListener {
         if (ballY < 0) {
             velY = -velY;
             ++scoreBottom;
+
+            // Reward
             done = true;
         }
         // Bottom Wall
@@ -170,30 +210,29 @@ public class Game extends JPanel implements KeyListener, ActionListener {
             done = true;
 
             // Penalty
-            result = -1;
+            result = -10;
         }
 
-        // bottom pad (player) change direction on collision
+        // Q-Table AI change direction on collision
         if (ballY + ballSize >= height - padH - inset && velY > 0)
             if (ballX + ballSize >= bottomPadX && ballX <= bottomPadX + padW) {
                 velY = -velY;
                 done = true;
 
-                // It's like a reward
+                // Reward
                 result = 1;
             }
 
 
-        // top pad (AI) change direction on collision
+        // Pre-Made AI change direction on collision
         if (ballY <= padH + inset && velY < 0) if (ballX + ballSize >= topPadX && ballX <= topPadX + padW) velY = -velY;
 
         // update ball position
-        ballX += velX;
-        ballY += velY;
+        ballX += velX * gameSpeed;
+        ballY += velY * gameSpeed;
 
-        // pressed keys
-        // pad
-        int SPEED = 1;
+        // Our Q-Table AI
+        int SPEED = gameSpeed;
         if (keys.size() == 1) {
             if (keys.contains("LEFT")) {
                 // Prevent pad from going out of bounds
@@ -204,7 +243,7 @@ public class Game extends JPanel implements KeyListener, ActionListener {
             }
         }
 
-        // AI
+        // Opponent AI - Pre-made
         double delta = ballX - topPadX;
         if (delta > 0) {
             topPadX += (topPadX < width - padW) ? SPEED : 0;
@@ -212,32 +251,26 @@ public class Game extends JPanel implements KeyListener, ActionListener {
             topPadX -= (topPadX > 0) ? SPEED : 0;
         }
 
-        if(!pastStates.containsValue( getGameState() )) {
-            stateCount += 1;
-            pastStates.put( stateCount, getGameState() );
-        }
-
         repaint();
     }
 
 
-    // TODO: Initialize Q-Table: (3x12) Double Array
-
     /**
-     * Initialize Q-Table with 0
+     * Initialize Q-Table with 0 and train it
      *
      * @param rows    Number of rows
      * @param columns Number of columns
-     * @return Initialized Q-Table
      */
-    public double[][] initQTable(int rows, int columns) {
-        double[][] qTable = new double[rows][columns];
+    public void initQTable(int rows, int columns) {
+        qTable = new double[rows][columns];
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < columns; j++) {
                 qTable[i][j] = 0;
             }
         }
-        return qTable;
+        updateQTableDisplay();
+        debugger("QTable initialized");
+        training();
     }
 
     /**
@@ -249,21 +282,22 @@ public class Game extends JPanel implements KeyListener, ActionListener {
      * @return Best action in a given state
      */
     // Do EXPLORATION with chance (Epsilon) and EXPLOITATION with chance of (1-Epsilon)
-    public double epsilon_greedy_policy(double[][] qTable, double state, double epsilon) {
+    public double epsilon_greedy_policy(double[][] qTable, GameState state, double epsilon) {
 
         // Create random number between 0 and 1
         double rand = ThreadLocalRandom.current().nextDouble(0, 1);
         double action = 0.0;
+        int index = Math.abs(state.hashCode()) % qTable.length;
 
         if (rand > epsilon) {
             // get max of QTable in one column
             double cMax = 0;
-            for (int i = 0; i < qTable[(int) state].length; i++) {
-                if (qTable[(int) state][i] > cMax) cMax = qTable[(int) state][i];
+            for (int i = 0; i < qTable[index].length; i++) {
+                if (qTable[index][i] > cMax) cMax = qTable[index][i];
             }
 
         } else {
-            // action is set to random action?!?
+            // action is set to random action
             action = ThreadLocalRandom.current().nextDouble(0, 2);
         }
 
@@ -271,73 +305,50 @@ public class Game extends JPanel implements KeyListener, ActionListener {
     }
 
     /**
-     * Greedy Policy is used to find the best action in a given state
-     *
-     * @param qTable Table of Q-Values
-     * @param state  Current state
-     * @return Best action in a given state
+     * Using Bellman's equation to update Q-Table and train it
      */
-    public double greedy_policy(double[][] qTable, double state) {
-        double cMax = 0;
-        for (int i = 0; i < qTable[(int) state].length; i++) {
-            if (qTable[(int) state][i] > cMax) cMax = qTable[(int) state][i];
-        }
-        return cMax;
-    }
+    public void training() {
+        double[] episodeRewards = new double[n_training_episodes];
 
-    /**
-     * Using Bellman's equation to update Q-Table
-     *
-     * @param qTable Table of Q-Values
-     * @return Updated Q-Table with Bellman's equation
-     */
-    public double[][] training(double[][] qTable) {
         // Loop through episodes
         for (int episode = 0; episode < n_training_episodes; episode++) {
+            result = 0;
+            done = false;
 
-            // TODO: fix state
-            int state = pastStates.get(getGameState()); //why????????????? get gamestate and find statecount for it!!!!!!!!!!!!!! leid und schmerz
+            GameState state = getGameState();
 
             // Reduce epsilon (because we need less and less exploration)
             epsilon = min_epsilon + (max_epsilon - min_epsilon) * Math.exp(-decay_rate * episode);
             double action = epsilon_greedy_policy(qTable, state, epsilon);
 
             // Add action to list of actions
-            keys.add(listOfOptions.get(action));
+            keyModifier((int) action);
 
-            // Update Q-Table with Bellman's equation TODO: WTF IS "QTable, State"
-            qTable[state][(int) action] = qTable[state][(int) action] + learning_rate * (result + gamma * findMaxInColumns(qTable, state) - qTable[state][(int) action]);
+            // Hash code of state to find index in Q-Table (modulo to prevent out of bounds error, idk if this works btw)
+            int index = Math.abs(state.hashCode()) % qTable.length;
 
-            if (done) break;
+            // Update Q-Table with Bellman's equation (weighted sum of current Q-value and learned value)
+            qTable[index][(int) action] = qTable[index][(int) action] + learning_rate * (result + gamma * findMaxInColumns(qTable, index) - qTable[index][(int) action]);
+
+            updateQTableDisplay();
+
+            // Add reward
+            episodeRewards[episode] += result;
+
+            // Show episode and reward only if reward is not 0
+            if (result != 0) System.out.println("Episode: " + episode + ", Reward: " + result);
+
+            if (done) {
+                // Do evaluation
+                double avg = calculateAverage(episodeRewards);
+                double sd = calculateSD(episodeRewards);
+                System.out.println("Episode: " + episode + ", Average Reward: " + avg + ", Standard Deviation: " + sd);
+
+                // Reset game
+                done = false;
+                debugger("Game reset");
+            }
         }
-        // print trained QTable
-        for (int i = 0; i < qTable.length; i++)
-            for (int j = 0; j < qTable[i].length; j++)
-                System.out.print(qTable[i][j] + " ");
-
-        // return trained QTable
-        return qTable;
-    }
-
-    // TODO: Eval Agent
-
-    public double[] eval(double[][] QTable) {
-        double[] episode_reward = new double[0];
-
-        // TODO: fix state only find state that machtes gamestate
-        int state = pastStates.get(stateCount); //why?????????????: get gamestate and find statecount for it!!!!!!!!!!!!!! pain D:
-
-        double action = findMaxInColumns(QTable, state);
-        int reward = result;
-
-        // Append reward to episode_reward
-        episode_reward = Arrays.copyOf(episode_reward, episode_reward.length + 1);
-        episode_reward[episode_reward.length - 1] = reward;
-
-        double SD = calculateSD(episode_reward);
-        double Avg = calculateAverage(episode_reward);
-
-        return new double[]{SD, Avg};
     }
 
     @Override
