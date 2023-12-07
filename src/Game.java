@@ -289,6 +289,12 @@ public class Game extends JPanel implements KeyListener, ActionListener {
 
             if (done) break;
         }
+        // print trained QTable
+        for (int i = 0; i < qTable.length; i++)
+            for (int j = 0; j < qTable[i].length; j++)
+                System.out.print(qTable[i][j] + " ");
+
+        // return trained QTable
         return qTable;
     }
 
