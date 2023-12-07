@@ -18,6 +18,10 @@ public class Game extends JPanel implements KeyListener, ActionListener {
     static HashSet<String> keys = new HashSet<>();
     // 0 = Nothing, -1 = Penalty, 1 = Reward
 
+    //TODO: AHHHHJHHHHH!HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH!H!HHHHHHHHHHHHHHHHGHGHGHHGHHGHGHGHGHGGGGGHGHHHHHHHHHHHH
+    HashMap<Integer, double[]> pastStates= new HashMap<>();
+    int stateCount = 0;
+
     static int result;
     static boolean done = false;
     private final HashMap<Double, String> listOfOptions = new HashMap<>();
@@ -208,6 +212,11 @@ public class Game extends JPanel implements KeyListener, ActionListener {
             topPadX -= (topPadX > 0) ? SPEED : 0;
         }
 
+        if(!pastStates.containsValue( getGameState() )) {
+            stateCount += 1;
+            pastStates.put( stateCount, getGameState() );
+        }
+
         repaint();
     }
 
@@ -286,7 +295,8 @@ public class Game extends JPanel implements KeyListener, ActionListener {
         // Loop through episodes
         for (int episode = 0; episode < n_training_episodes; episode++) {
 
-            int state = bottomPadX;
+            // TODO: fix state
+            int state = pastStates.get(getGameState()); //why????????????? get gamestate and find statecount for it!!!!!!!!!!!!!! leid und schmerz
 
             // Reduce epsilon (because we need less and less exploration)
             epsilon = min_epsilon + (max_epsilon - min_epsilon) * Math.exp(-decay_rate * episode);
@@ -314,7 +324,9 @@ public class Game extends JPanel implements KeyListener, ActionListener {
     public double[] eval(double[][] QTable) {
         double[] episode_reward = new double[0];
 
-        // TODO: Define state
+        // TODO: fix state only find state that machtes gamestate
+        int state = pastStates.get(stateCount); //why?????????????: get gamestate and find statecount for it!!!!!!!!!!!!!! pain D:
+
         double action = findMaxInColumns(QTable, state);
         int reward = result;
 
