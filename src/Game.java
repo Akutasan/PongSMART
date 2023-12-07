@@ -17,6 +17,7 @@ public class Game extends JPanel implements KeyListener, ActionListener {
     // TODO: AI modifies HashMap ("LEFT" / "RIGHT") in order to control Paddle
     static HashSet<String> keys = new HashSet<>();
     // 0 = Nothing, -1 = Penalty, 1 = Reward
+
     static int result;
     static boolean done = false;
     private final HashMap<Double, String> listOfOptions = new HashMap<>();
@@ -56,6 +57,16 @@ public class Game extends JPanel implements KeyListener, ActionListener {
         Timer t = new Timer(5, this);
         t.setInitialDelay(100);
         t.start();
+    }
+
+    // get and return gameState
+    double[] gameState = new double[2];
+    public double[] getGameState(){
+        gameState[0] = ballX;
+        gameState[1] = ballY;
+        gameState[2] = bottomPadX;
+
+        return gameState;
     }
 
     public static double findMaxInColumns(double[][] arr, int cols) {
@@ -284,7 +295,7 @@ public class Game extends JPanel implements KeyListener, ActionListener {
             // Add action to list of actions
             keys.add(listOfOptions.get(action));
 
-            // Update Q-Table with Bellman's equation
+            // Update Q-Table with Bellman's equation TODO: WTF IS "QTable, State"
             qTable[state][(int) action] = qTable[state][(int) action] + learning_rate * (result + gamma * findMaxInColumns(qTable, state) - qTable[state][(int) action]);
 
             if (done) break;
