@@ -233,7 +233,7 @@ public class Game extends JPanel implements KeyListener, ActionListener {
 
         // Create random number between 0 and 1
         double rand = ThreadLocalRandom.current().nextDouble(0, 1);
-        double action;
+        double action = 0.0;
 
         if (rand > epsilon) {
             // get max of QTable in one column
@@ -244,7 +244,7 @@ public class Game extends JPanel implements KeyListener, ActionListener {
 
         } else {
             // action is set to random action?!?
-            //action = somn like a sample
+            action = ThreadLocalRandom.current().nextDouble(0, 2);
         }
 
         return action;
