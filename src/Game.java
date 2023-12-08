@@ -210,7 +210,7 @@ public class Game extends JPanel implements KeyListener, ActionListener {
             done = true;
 
             // Penalty
-            result = -10 * (int) (1+Math.pow(bottomPadX-ballX, 2));
+            result = -10 * (int) (1 + Math.pow(bottomPadX - ballX, 2));
         }
 
         // Q-Table AI change direction on collision
@@ -318,17 +318,17 @@ public class Game extends JPanel implements KeyListener, ActionListener {
             GameState state = getGameState();
 
             // Reduce epsilon (because we need less and less exploration)
-            epsilon = min_epsilon + ( max_epsilon - min_epsilon ) * Math.exp( -decay_rate * episode );
-            double action = epsilon_greedy_policy( qTable, state, epsilon );
+            epsilon = min_epsilon + (max_epsilon - min_epsilon) * Math.exp(-decay_rate * episode);
+            double action = epsilon_greedy_policy(qTable, state, epsilon);
 
             // Add action to list of actions
-            keyModifier( (int) action );
+            keyModifier((int) action);
 
             // Hash code of state to find index in Q-Table (modulo to prevent out of bounds error, idk if this works btw)
-            int index = Math.abs( state.hashCode() ) % qTable.length;
+            int index = Math.abs(state.hashCode()) % qTable.length;
 
             // Update Q-Table with Bellman's equation (weighted sum of current Q-value and learned value)
-            qTable[index][(int) action] = qTable[index][(int) action] + learning_rate * ( result + gamma * findMaxInColumns( qTable, index ) - qTable[index][(int) action] );
+            qTable[index][(int) action] = qTable[index][(int) action] + learning_rate * (result + gamma * findMaxInColumns(qTable, index) - qTable[index][(int) action]);
 
             updateQTableDisplay();
 
