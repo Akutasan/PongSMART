@@ -6,8 +6,11 @@ public class GameState {
     private final int bottomPadX;
 
     public GameState(double ballX, double ballY, int bottomPadX) {
-        this.ballX = ballX;
-        this.ballY = ballY;
+        // default gamestate defined as 0,0,0
+        // passes 0,0,0 when ball is moving towards oppentent
+
+        this.ballX = ballX %.1f;
+        this.ballY = ballY %.1f;
         this.bottomPadX = bottomPadX;
     }
 
