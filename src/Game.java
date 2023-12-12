@@ -12,42 +12,47 @@ import java.util.HashSet;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Game extends JPanel implements KeyListener, ActionListener {
-    // AI modifies HashMap ("LEFT" / "RIGHT") in order to control Paddle
+    // KI modifiziert HashMap ("LEFT" / "RIGHT") um Paddle zu steuern
     static HashSet<String> keys = new HashSet<>();
-    // 0 = Nothing, -1 = Penalty, 1 = Reward
+    // 0 = Nichts, -1 = Strafe, 1 = Belohnung
+
+    static boolean debug = true;
+    // ALAAAARM: AUF FALSE, WENN Q-TABLE > 1000 STATES
+    static boolean qTableFrameShow = false;
     static int result;
     static boolean done = false;
+    static int n_training_episodes = 10000;
     public final int padW = 40;
     public final double ballSize = 20;
     private final int padH = 10;
     private final int inset = 10;
-    // ==================== MODIFY THESE VALUES FOR OPTIMAL RESULTS ====================
+    // ==================== DIESE WERTE FÜR OPTIMIERUNG ANPASSEN ====================
     double learning_rate = 0.8;
     double gamma = 0.85;
     double max_epsilon = 1.0;
     double min_epsilon = 0.05;
+
+    // ==================== DIESE WERTE FÜR OPTIMIERUNG ANPASSEN ====================
     double decay_rate = 0.0000005;
-
-    // ==================== MODIFY THESE VALUES FOR OPTIMAL RESULTS ====================
-
     int gameSpeed = 1;
-    int n_training_episodes = 10000;
     double epsilon = 0;
     double[][] qTable;
     JFrame qTableFrame = new JFrame("Q-Table");
     DefaultTableModel qTableModel = new DefaultTableModel();
     JTable qTableDisplay = new JTable(qTableModel);
+    int currentEpisode = 0;
     private int height, width;
     private boolean first;
     private int bottomPadX, topPadX;
-    // ball
     private double ballX;
     private double ballY;
     private double velX = 1;
     private double velY = 1;
-    // score
     private int scoreTop, scoreBottom;
 
+    /**
+     * Konstruktor der Game Klasse
+     */
     public Game() {
         addKeyListener(this);
         setFocusable(true);
@@ -59,25 +64,35 @@ public class Game extends JPanel implements KeyListener, ActionListener {
         t.setInitialDelay(100);
         t.start();
 
-        // Add a cool motherfucking slider sheesh (it gets jankier the higher we go so I cap at 20 hehe)
+        // Slider um die Spielgeschwindigkeit zu ändern
         JSlider speedSlider = new JSlider(JSlider.HORIZONTAL, 1, 20, gameSpeed);
         speedSlider.addChangeListener(e -> {
             JSlider source = (JSlider) e.getSource();
             if (!source.getValueIsAdjusting()) {
-                // Update the game speed when the slider value changes
+                // Geschwindigkeit wird geändert wenn der Slider nicht mehr bewegt wird
                 gameSpeed = source.getValue();
             }
         });
         this.add(speedSlider);
 
-        // Q-Table Frame to better watch
-        qTableFrame.setSize(400, 400);
-        qTableFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        qTableFrame.add(new JScrollPane(qTableDisplay));
-        qTableFrame.setVisible(true);
+        // Q-Table Visualisierung
+        if (qTableFrameShow) {
+            qTableFrame.setSize(400, 400);
+            qTableFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            qTableFrame.add(new JScrollPane(qTableDisplay));
+            qTableFrame.setVisible(true);
+        }
     }
 
-    // ============================== UTIL FUNCTIONS ==============================
+    // ============================== UTIL FUNKTIONEN ==============================
+
+    /**
+     * Findet das Maximum in einer Spalte eines 2D Arrays
+     *
+     * @param arr  2D Array
+     * @param cols Spalte
+     * @return Maximalwert in einer Spalte
+     */
     public static double findMaxInColumns(double[][] arr, int cols) {
         double max = 0;
         int index = Math.abs(cols) % arr.length;
@@ -87,6 +102,12 @@ public class Game extends JPanel implements KeyListener, ActionListener {
         return max;
     }
 
+    /**
+     * Berechnet die Standardabweichung eines Arrays
+     *
+     * @param numArray Array mit Zahlen
+     * @return Standardabweichung des Arrays
+     */
     public static double calculateSD(double[] numArray) {
         double sum = 0.0, standardDeviation = 0.0;
         int length = numArray.length;
@@ -104,34 +125,55 @@ public class Game extends JPanel implements KeyListener, ActionListener {
         return Math.sqrt(standardDeviation / length);
     }
 
+    /**
+     * Berechnet den Durchschnitt eines Arrays
+     *
+     * @param array Array mit Zahlen
+     * @return Durchschnitt des Arrays
+     */
     public static double calculateAverage(double[] array) {
         return Arrays.stream(array).average().orElse(Double.NaN);
     }
 
-    // Ignore this, nerdy stuff
+    /**
+     * Aktualisiert die Q-Table Visualisierung mit einem separaten Thread
+     */
     public void updateQTableDisplay() {
-        SwingUtilities.invokeLater(() -> {
-            Object[][] qTableObjects = new Object[qTable.length][qTable[0].length];
-            for (int i = 0; i < qTable.length; i++) {
-                for (int j = 0; j < qTable[0].length; j++) {
-                    qTableObjects[i][j] = qTable[i][j];
+        if (qTableFrameShow) {
+            SwingUtilities.invokeLater(() -> {
+                Object[][] qTableObjects = new Object[qTable.length][qTable[0].length];
+                for (int i = 0; i < qTable.length; i++) {
+                    for (int j = 0; j < qTable[0].length; j++) {
+                        qTableObjects[i][j] = qTable[i][j];
+                    }
                 }
-            }
-            qTableModel.setDataVector(qTableObjects, new String[qTable[0].length]);
-        });
+                qTableModel.setDataVector(qTableObjects, new String[qTable[0].length]);
+            });
+        }
     }
 
+    /**
+     * Debugging Funktion um Nachrichten in der Konsole auszugeben
+     *
+     * @param msg Nachricht
+     */
     public void debugger(String msg) {
-        System.out.println(msg);
+        if (debug) System.out.println(msg);
     }
 
-    // Method to add left or right to the list of keys and remove it when the key is released
+
+    /**
+     * Fügt "LEFT" oder "RIGHT" zur Liste der Tasten hinzu und entfernt es, wenn die Taste losgelassen wird
+     * Paddle bewegt sich nur, wenn die Taste im HashSet ist
+     *
+     * @param action 0 = LEFT, 1 = RIGHT
+     */
     public void keyModifier(int action) {
         switch (action) {
             case 0 -> keys.add("LEFT");
             case 1 -> keys.add("RIGHT");
         }
-        // wait for 100ms
+        // 100ms Wartezeit um die Tasten nicht zu schnell zu drücken
         try {
             Thread.sleep(100);
         } catch (InterruptedException e) {
@@ -144,13 +186,22 @@ public class Game extends JPanel implements KeyListener, ActionListener {
         }
     }
 
-    // ============================== UTIL FUNCTIONS ==============================
-
-    // get and return gameState
+    /**
+     * Gibt den aktuellen GameState zurück
+     *
+     * @return Aktueller GameState
+     */
     public GameState getGameState() {
         return new GameState(ballX, ballY, bottomPadX);
     }
 
+    // ============================== UTIL FUNKTIONEN ==============================
+
+    /**
+     * Zeichnet die Komponenten des Spiels (Paddles, Ball, Scores)
+     *
+     * @param g Graphics Objekt (wird automatisch übergeben)
+     */
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
@@ -158,7 +209,7 @@ public class Game extends JPanel implements KeyListener, ActionListener {
         height = getHeight();
         width = getWidth();
 
-        // initial positioning
+        // Initialisierung der Positionen
         if (first) {
             bottomPadX = width / 2 - padW / 2;
             topPadX = bottomPadX;
@@ -167,35 +218,43 @@ public class Game extends JPanel implements KeyListener, ActionListener {
             first = false;
         }
 
-        // bottom pad
+        // Unteres Paddle
         Rectangle2D bottomPad = new Rectangle(bottomPadX, height - padH - inset, padW, padH);
         g2d.fill(bottomPad);
 
-        // top pad
+        // Oberes Paddle
         Rectangle2D topPad = new Rectangle(topPadX, inset, padW, padH);
         g2d.fill(topPad);
 
-        // ball
+        // Ball
         Ellipse2D ball = new Ellipse2D.Double(ballX, ballY, ballSize, ballSize);
         g2d.fill(ball);
 
-        // scores
-        String scoreB = "Bottom: " + scoreBottom;
-        String scoreT = "Top: " + scoreTop;
+        // Punkte Anzeige und Geschwindigkeit des Spiels
+        String scoreB = "Unten: " + scoreBottom;
+        String scoreT = "Oben: " + scoreTop;
         String gameSpeedText = "GS: " + gameSpeed;
+        String episode = "EP: " + currentEpisode;
         g2d.drawString(gameSpeedText, width / 2 - 20, 40);
+        g2d.drawString(episode, width / 2 - 20, 60);
         g2d.drawString(scoreB, 10, height / 2);
         g2d.drawString(scoreT, width - 50, height / 2);
     }
 
+    /**
+     * Bearbeitet die Events (Kollisionen, Punkte, etc.)
+     * Runtime Methode
+     *
+     * @param e ActionEvent Objekt (wird automatisch übergeben)
+     */
     @Override
     public void actionPerformed(ActionEvent e) {
-        // side walls (left / right): change direction on collision
+        // Seitenwände (links / rechts): Richtung des Balls bei Kollision ändern
         if (ballX < 0 || ballX > width - ballSize) {
             velX = -velX;
         }
-        // top / down walls (top / bottom): change direction on collision and update score
-        // Top Wall
+        // Wände Oben/Unten: Richtung des Balls bei Kollision ändern und Punkte aktualisieren
+        // obere Wand
         if (ballY < 0) {
             velY = -velY;
             ++scoreBottom;
@@ -203,35 +262,37 @@ public class Game extends JPanel implements KeyListener, ActionListener {
             // Reward
             done = true;
         }
-        // Bottom Wall
+        // Untere Wand
         if (ballY + ballSize > height) {
             velY = -velY;
             ++scoreTop;
             done = true;
 
-            // Penalty
-            result = -10 * (int) (1 + Math.pow(bottomPadX - ballX, 2));
+            // Strafe
+            result = -10 * (int) (1 + Math.abs(bottomPadX - ballX));
         }
 
-        // Q-Table AI change direction on collision
+
+        // Q-Table KI; ändert Richtung des Balls bei Kollision
         if (ballY + ballSize >= height - padH - inset && velY > 0)
             if (ballX + ballSize >= bottomPadX && ballX <= bottomPadX + padW) {
                 velY = -velY;
                 done = true;
 
-                // Reward
-                result = 10;
+
+                // Belohnung
+                result = 100;
             }
 
 
-        // Pre-Made AI change direction on collision
+        // Vordefinierte KI; ändert Richtung des Balls bei Kollision
         if (ballY <= padH + inset && velY < 0) if (ballX + ballSize >= topPadX && ballX <= topPadX + padW) velY = -velY;
 
-        // update ball position
+        // Aktualisiert Position des Balls
         ballX += velX * gameSpeed;
         ballY += velY * gameSpeed;
 
-        // Our Q-Table AI
+        // Q-Table KI; ändert Position des Paddles
         int SPEED = gameSpeed;
         if (keys.size() == 1) {
             if (keys.contains("LEFT")) {
@@ -243,7 +304,7 @@ public class Game extends JPanel implements KeyListener, ActionListener {
             }
         }
 
-        // Opponent AI - Pre-made
+        // Vordefinierte KI; ändert Position des Paddles
         double delta = ballX - topPadX;
         if (delta > 0) {
             topPadX += (topPadX < width - padW) ? SPEED : 0;
@@ -256,10 +317,10 @@ public class Game extends JPanel implements KeyListener, ActionListener {
 
 
     /**
-     * Initialize Q-Table with 0 and train it
+     * Initialisiert die Q-Table mit den gegebenen Parametern
      *
-     * @param rows    Number of rows
-     * @param columns Number of columns
+     * @param rows    Anzahl der Zeilen
+     * @param columns Anzahl der Spalten
      */
     public void initQTable(int rows, int columns) {
         qTable = new double[rows][columns];
@@ -269,35 +330,35 @@ public class Game extends JPanel implements KeyListener, ActionListener {
             }
         }
         updateQTableDisplay();
-        debugger("QTable initialized");
+        debugger("QTable initialisiert");
         training();
     }
 
     /**
-     * Epsilon Greedy Policy is used to find the best action in a given state with a chance of (1-Epsilon)
+     * Epsilon-Greedy Policy um die beste Aktion in einem gegebenen Zustand zu finden (mit der Wahrscheinlichkeit Epsilon)
+     * Ausgleich zwischen Exploration und Exploitation
      *
-     * @param qTable  Table of Q-Values
-     * @param state   Current state
-     * @param epsilon Chance of exploration
-     * @return Best action in a given state
+     * @param qTable  Q-Table
+     * @param state   Aktueller GameState
+     * @param epsilon Wahrscheinlichkeit für Exploration
+     * @return Beste Aktion für den gegebenen GameState
      */
-    // Do EXPLORATION with chance (Epsilon) and EXPLOITATION with chance of (1-Epsilon)
     public double epsilon_greedy_policy(double[][] qTable, GameState state, double epsilon) {
 
-        // Create random number between 0 and 1
+        // Zufallszahl zwischen 0 und 1
         double rand = ThreadLocalRandom.current().nextDouble(0, 1);
         double action = 0.0;
         int index = Math.abs(state.hashCode()) % qTable.length;
 
         if (rand > epsilon) {
-            // get max of QTable in one column
+            // Aktion des höchsten Q-Wertes ist die beste Aktion (Exploitation)
             double cMax = 0;
             for (int i = 0; i < qTable[index].length; i++) {
                 if (qTable[index][i] > cMax) cMax = qTable[index][i];
             }
 
         } else {
-            // action is set to random action
+            // Aktion wird zufällig gewählt (Exploration)
             action = ThreadLocalRandom.current().nextDouble(0, 2);
         }
 
@@ -305,57 +366,75 @@ public class Game extends JPanel implements KeyListener, ActionListener {
     }
 
     /**
-     * Using Bellman's equation to update Q-Table and train it
+     * Trainiert die KI mit Bellman's equation und epsilon-greedy policy
+     * Bellman's Formel benutzt den aktuellen Q-Wert und den maximalen Q-Wert des nächsten Zustandes und aktualisiert den Q-Wert des aktuellen Zustandes
      */
     public void training() {
         double[] episodeRewards = new double[n_training_episodes];
 
-        // Loop through episodes
+
+        // Trainiere für n Trainingsepisoden (eine Episode ist bis der Ball die untere Wand berührt oder das Paddle)
         for (int episode = 0; episode < n_training_episodes; episode++) {
             result = 0;
             done = false;
+            currentEpisode = episode;
 
             GameState state = getGameState();
 
-            // Reduce epsilon (because we need less and less exploration)
+            // Epsilon wird mit jedem Trainingsschritt kleiner (exploration wird weniger, da die KI mehr lernt)
             epsilon = min_epsilon + (max_epsilon - min_epsilon) * Math.exp(-decay_rate * episode);
             double action = epsilon_greedy_policy(qTable, state, epsilon);
 
-            // Add action to list of actions
+            // Führe Aktion aus
             keyModifier((int) action);
 
-            // Hash code of state to find index in Q-Table (modulo to prevent out of bounds error, idk if this works btw)
+            // ein eindeutiger Integer Wert des nächsten GameStates wird berechnet (Hashcode Index)
+            // |x| wird benutzt, um negative indexe für die Q-Table zu vermeiden und Modulo wird benutzt, um den Index nicht zu groß werden zu lassen (zws. 0 und qTable.length - 1)
             int index = Math.abs(state.hashCode()) % qTable.length;
 
-            // Update Q-Table with Bellman's equation (weighted sum of current Q-value and learned value)
+            // Aktualisiere Q-Table mit Bellman's equation
             qTable[index][(int) action] = qTable[index][(int) action] + learning_rate * (result + gamma * findMaxInColumns(qTable, index) - qTable[index][(int) action]);
 
             updateQTableDisplay();
 
-            // Add reward
+            // Speichere Reward der Episode
             episodeRewards[episode] += result;
 
-            // Show episode and reward only if reward is not 0
-            if (result != 0) System.out.println("Episode: " + episode + ", Reward: " + result);
+            // Debugging von Rewards, nur wenn Reward != 0
+            if (result != 0) debugger("Episode: " + episode + ", Belohnung: " + result);
 
             if (done) {
-                // Do evaluation
-                double avg = calculateAverage(episodeRewards);
-                double sd = calculateSD(episodeRewards);
-                System.out.println("Episode: " + episode + ", Average Reward: " + avg + ", Standard Deviation: " + sd);
+                // Evaluation von Durchschnitt und Standardabweichung der Rewards
+                // Durchschnitt der Belohnungen zeigt, wie gut die KI ist (Je höher, desto besser)
+                // Standardabweichung der Belohnungen zeigt wie Konsistent die KI ist (Je niedriger, desto konstanter)
+                debugger("Episode: " + episode + ", Durchschnittliche Belohnung: " + calculateAverage(episodeRewards) + ", Standardabweichung: " + calculateSD(episodeRewards));
 
-                // Reset game
+                // "Reset" des Spiels
                 done = false;
-                debugger("Game reset");
+                debugger("Game resetted");
             }
         }
+
     }
 
+
+    // ==================== USER-INPUT METHODEN ====================
+
+    /**
+     * Kann ignoriert werden
+     *
+     * @param e -
+     */
     @Override
     public void keyTyped(KeyEvent e) {
         // Necessary for KeyListener class. DO NOT DELETE!
     }
 
+    /**
+     * Fügt "LEFT" oder "RIGHT" zur Liste der Tasten hinzu
+     *
+     * @param e KeyEvent Objekt (wird automatisch übergeben)
+     */
     @Override
     public void keyPressed(KeyEvent e) {
         int code = e.getKeyCode();
@@ -365,6 +444,11 @@ public class Game extends JPanel implements KeyListener, ActionListener {
         }
     }
 
+    /**
+     * Entfernt "LEFT" oder "RIGHT" von Liste der Tasten, wenn die Taste losgelassen wird
+     *
+     * @param e KeyEvent Objekt (wird automatisch übergeben)
+     */
     @Override
     public void keyReleased(KeyEvent e) {
         int code = e.getKeyCode();
